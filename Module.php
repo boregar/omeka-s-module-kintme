@@ -12,6 +12,7 @@ use Laminas\EventManager\Event;
 use Laminas\EventManager\SharedEventManagerInterface;
 use Omeka\Module\AbstractModule;
 use Omeka\Stdlib\Message;
+use Omeka\Entity\User;
 
 class Module extends AbstractModule {
 
@@ -20,13 +21,18 @@ class Module extends AbstractModule {
   }
 
   public function getConfigForm(PhpRenderer $renderer) {
-    $settings = $this->getServiceLocator()->get('Omeka\Settings');
+    $services = $this->getServiceLocator();
+    $settings = $services->get('Omeka\Settings');
+    // give the form a reference to the ACL because the Form object has no access to ServiceLocator
+    $acl = $services->get('Omeka\Acl');
     $form = new ConfigForm;
+    $form->setAcl($acl);
     $form->init();
     $form->setData([
       'kintme_enabled_mode' => $settings->get('kintme_enabled_mode', 'no'),
       'kintme_return' => $settings->get('kintme_return', 'no'),
-      'kintme_depth_limit' => $settings->get('kintme_depth_limit', 7),
+      'kintme_depth_limit' => $settings->get('kintme_depth_limit', 3),
+      'kintme_roles' => $settings->get('kintme_roles'),
       'kintme_enable_debug_expression' => $settings->get('kintme_enable_debug_expression', 'no'),
       'kintme_debug_expression' => $settings->get('kintme_debug_expression'),
     ]);
@@ -34,8 +40,12 @@ class Module extends AbstractModule {
   }
 
   public function handleConfigForm(AbstractController $controller) {
-    $settings = $this->getServiceLocator()->get('Omeka\Settings');
+    $services = $this->getServiceLocator();
+    $settings = $services->get('Omeka\Settings');
+    // give the form a reference to the ACL because the Form object has no access to ServiceLocator
+    $acl = $services->get('Omeka\Acl');
     $form = new ConfigForm;
+    $form->setAcl($acl);
     $form->init();
     $form->setData($controller->params()->fromPost());
     if (!$form->isValid()) {
@@ -46,6 +56,7 @@ class Module extends AbstractModule {
     $settings->set('kintme_enabled_mode', $formData['kintme_enabled_mode']);
     $settings->set('kintme_return', $formData['kintme_return']);
     $settings->set('kintme_depth_limit', (int) $formData['kintme_depth_limit']);
+    $settings->set('kintme_roles', $formData['kintme_roles']);
     $settings->set('kintme_enable_debug_expression', $formData['kintme_enable_debug_expression']);
     $settings->set('kintme_debug_expression', $formData['kintme_debug_expression']);
     return true;
@@ -60,6 +71,11 @@ class Module extends AbstractModule {
     if (!$services->get('Omeka\Status')->isSiteRequest()) {
       return;
     }
+    // get the role of current user
+    $view = $event->getTarget();
+    $user = $view->identity();
+    $userRole = $user ? $user->getRole() : '';
+    // get the Kint settings
     $settings = $services->get('Omeka\Settings');
     if ($settings->get('kintme_enabled_mode', 'no') === 'no') {
       Kint::$enabled_mode = false;
@@ -67,14 +83,23 @@ class Module extends AbstractModule {
     }
     Kint::$return = ($settings->get('kintme_return', 'no') === 'yes');
     Kint::$depth_limit = $settings->get('kintme_depth_limit', 3);
-    if ($settings->get('kintme_enable_debug_expression', 'no') === 'yes') {
-      $dExpr = $settings->get('kintme_debug_expression');
-      if ($dExpr) {
-        eval("d($dExpr);");
+    // output debug information for allowed roles only
+    $allowedRoles = $settings->get('kintme_roles');
+    if ((gettype($allowedRoles) !== 'array') || in_array($userRole, $allowedRoles)) {
+      if ($settings->get('kintme_enable_debug_expression', 'no') === 'yes') {
+        $dExpr = $settings->get('kintme_debug_expression');
+        if ($dExpr) {
+          // get the debug output and store it in a buffer
+          ob_start();
+          eval("d($dExpr);");
+          $dOutput = ob_get_clean();
+          // get the view: $event->getTarget();
+          // get/set the body content of the view: $event->getTarget()->content;
+          // inject the debug output at the top of the body of the view
+          eval('$event->getTarget()->content = \'' . str_replace('\'', '\\\'', $dOutput) . '\' . $event->getTarget()->content;');
+        }
       }
     }
-    //$view = $event->getTarget();
-    //d($view);
   }
 
   public function uninstall(ServiceLocatorInterface $serviceLocator) {
