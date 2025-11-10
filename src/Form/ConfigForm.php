@@ -31,21 +31,6 @@ class ConfigForm extends Form {
     ]);
 
     $this->add([
-      'type' => 'checkbox',
-      'name' => 'kintme_return',
-      'options' => [
-        'label' => 'Kint::$return', // @translate
-        'info' => 'Whether to return or echo the output.', // @translate
-        'use_hidden_element' => true,
-        'checked_value' => 'yes',
-        'unchecked_value' => 'no',
-      ],
-      'attributes' => [
-        'id' => 'kintme-return',
-      ],
-    ]);
-
-    $this->add([
       'type' => 'number',
       'name' => 'kintme_depth_limit',
       'options' => [

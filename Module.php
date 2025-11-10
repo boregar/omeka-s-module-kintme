@@ -3,6 +3,9 @@ namespace KintMe;
 
 include __DIR__ . '/asset/kint/kint.phar';
 use Kint;
+// todo: the templates do not inherit of the Kint::... parameters set in hookViewLayout (why?)
+// --> set them here so they are global
+Kint::$depth_limit = 3;
 
 use KintMe\Form\ConfigForm;
 use Laminas\ServiceManager\ServiceLocatorInterface;
@@ -30,7 +33,6 @@ class Module extends AbstractModule {
     $form->init();
     $form->setData([
       'kintme_enabled_mode' => $settings->get('kintme_enabled_mode', 'no'),
-      'kintme_return' => $settings->get('kintme_return', 'no'),
       'kintme_depth_limit' => $settings->get('kintme_depth_limit', 3),
       'kintme_roles' => $settings->get('kintme_roles'),
       'kintme_enable_debug_expression' => $settings->get('kintme_enable_debug_expression', 'no'),
@@ -54,7 +56,6 @@ class Module extends AbstractModule {
     }
     $formData = $form->getData();
     $settings->set('kintme_enabled_mode', $formData['kintme_enabled_mode']);
-    $settings->set('kintme_return', $formData['kintme_return']);
     $settings->set('kintme_depth_limit', (int) $formData['kintme_depth_limit']);
     $settings->set('kintme_roles', $formData['kintme_roles']);
     $settings->set('kintme_enable_debug_expression', $formData['kintme_enable_debug_expression']);
@@ -81,7 +82,6 @@ class Module extends AbstractModule {
       Kint::$enabled_mode = false;
       return;
     }
-    Kint::$return = ($settings->get('kintme_return', 'no') === 'yes');
     Kint::$depth_limit = $settings->get('kintme_depth_limit', 3);
     // output debug information for allowed roles only
     $allowedRoles = $settings->get('kintme_roles');
@@ -93,19 +93,28 @@ class Module extends AbstractModule {
           ob_start();
           eval("d($dExpr);");
           $dOutput = ob_get_clean();
-          // get the view: $event->getTarget();
+
+          //Kint::$return = true;
+          //$dOutput = d('$this');
+          //Kint::$return = false;
+
           // get/set the body content of the view: $event->getTarget()->content;
           // inject the debug output at the top of the body of the view
-          eval('$event->getTarget()->content = \'' . str_replace('\'', '\\\'', $dOutput) . '\' . $event->getTarget()->content;');
+          eval('$view->content = \'' . str_replace('\'', '\\\'', $dOutput) . '\' . $view->content;');
         }
       }
     }
   }
 
+  public function upgrade($oldVersion, $newVersion, ServiceLocatorInterface $serviceLocator) {
+    // v0.1.5
+    $settings = $serviceLocator->get('Omeka\Settings');
+    $settings->delete('kintme_return');
+  }
+
   public function uninstall(ServiceLocatorInterface $serviceLocator) {
     $settings = $serviceLocator->get('Omeka\Settings');
     $settings->delete('kintme_enabled_mode');
-    $settings->delete('kintme_return');
     $settings->delete('kintme_depth_limit');
     $settings->delete('kintme_debug_expression');
   }
