@@ -116,6 +116,8 @@ class Module extends AbstractModule {
     $settings = $serviceLocator->get('Omeka\Settings');
     $settings->delete('kintme_enabled_mode');
     $settings->delete('kintme_depth_limit');
+    $settings->delete('kintme_roles');
+    $settings->delete('kintme_enable_debug_expression');
     $settings->delete('kintme_debug_expression');
   }
 }
