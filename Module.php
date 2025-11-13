@@ -93,12 +93,6 @@ class Module extends AbstractModule {
           ob_start();
           eval("d($dExpr);");
           $dOutput = ob_get_clean();
-
-          //Kint::$return = true;
-          //$dOutput = d('$this');
-          //Kint::$return = false;
-
-          // get/set the body content of the view: $event->getTarget()->content;
           // inject the debug output at the top of the body of the view
           eval('$view->content = \'' . str_replace('\'', '\\\'', $dOutput) . '\' . $view->content;');
         }
@@ -106,10 +100,20 @@ class Module extends AbstractModule {
     }
   }
 
-  public function upgrade($oldVersion, $newVersion, ServiceLocatorInterface $serviceLocator) {
-    // v0.1.5
+  public function install(ServiceLocatorInterface $serviceLocator) {
     $settings = $serviceLocator->get('Omeka\Settings');
-    $settings->delete('kintme_return');
+    $settings->set('kintme_enabled_mode', 'no');
+    $settings->set('kintme_depth_limit', 3);
+    $settings->set('kintme_roles', null);
+    $settings->set('kintme_enable_debug_expression', 'no');
+    $settings->set('kintme_debug_expression', '');
+  }
+
+  public function upgrade($oldVersion, $newVersion, ServiceLocatorInterface $serviceLocator) {
+    if (version_compare($oldVersion, '0.1.6', '<')) {
+      $settings = $serviceLocator->get('Omeka\Settings');
+      $settings->delete('kintme_return');
+    }
   }
 
   public function uninstall(ServiceLocatorInterface $serviceLocator) {
